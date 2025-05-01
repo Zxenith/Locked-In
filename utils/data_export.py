@@ -10,10 +10,10 @@ import logging.config
 import json
 import logging
 import certifi
-from utils.logs_utils import setup_logging
+# from utils.logs_utils import setup_logging
 
-setup_logging("LOGS/data_export.log")
-logger = logging.getLogger(__name__)
+# setup_logging("LOGS/data_export.log")
+# logger = logging.getLogger(__name__)
 
 try:
     load_dotenv()
@@ -23,12 +23,15 @@ try:
     
 
     if not MONGO_USERNAME or not MONGO_PASSWORD:
-        raise logger.debug("MongoDB credentials are not set in the .env file.")
+        # raise logger.debug("MongoDB credentials are not set in the .env file.")
+        print("MongoDB credentials are not set in the .env file.")
 
-    MONGO_URI = os.getenv("MONGO_URI")
+    # MONGO_URI = os.getenv("MONGO_URI")
+    MONGO_URI = "mongodb://localhost:27017"
 
 except Exception as e:
-    logger.critical(e)
+    # logger.critical(e)
+    print(e)
 
 def main(CSV_FILE_PATH, DB_NAME, COLLECTION_NAME):
     try:
@@ -43,19 +46,21 @@ def main(CSV_FILE_PATH, DB_NAME, COLLECTION_NAME):
         collection = db[COLLECTION_NAME]
 
         collection.insert_many(json_data)
-        logger.info(f"Data Exported to MongoDB Successfully.")
+        # logger.info(f"Data Exported to MongoDB Successfully.")
 
     except Exception as e:
-        logger.error(f'Data insert Error: {e}')
+        # logger.error(f'Data insert Error: {e}')
+        print(e)
 
 if __name__ == '__main__':
     try:
         File_path = r"DATASETS\Online_Courses.csv"
-        Database = "hackhound-db"
+        Database = "wdt-db"
         Collection = "courses"
         main(File_path, Database, Collection)
 
-        logger.info(f"Records inserted successfully.")
+        # logger.info(f"Records inserted successfully.")
     
     except Exception as e:
-        logger.error(f"Error in main: {e}")
+        # logger.error(f"Error in main: {e}")
+        print(e)

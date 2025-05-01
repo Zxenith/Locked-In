@@ -10,12 +10,13 @@ import logging.config
 import json
 import logging
 import certifi
-from utils.logs_utils import setup_logging
+# from utils.logs_utils import setup_logging
 from datetime import datetime, timedelta
 import statistics
+import ssl
 
-setup_logging("LOGS/data_export.log")
-logger = logging.getLogger(__name__)
+# setup_logging("LOGS/data_export.log")
+# logger = logging.getLogger(__name__)
 
 try:
     load_dotenv()
@@ -25,21 +26,29 @@ try:
     
 
     if not MONGO_USERNAME or not MONGO_PASSWORD:
-        raise logger.debug("MongoDB credentials are not set in the .env file.")
+        # raise logger.debug("MongoDB credentials are not set in the .env file.")
+        print('MongoDB credentials are not set in the .env file.')
 
     MONGO_URI = os.getenv("MONGO_URI")
+    # MONGO_URI = "mongodb://localhost:27017"
 
 except Exception as e:
-    logger.critical(e)
+    # logger.critical(e)
+    print(e)
 
 def connect_db():
     try:
-        client = pymongo.MongoClient(MONGO_URI)
-        logger.info("Connected to MongoDB.")
-        return client['hackhound-db']
+        client = pymongo.MongoClient(
+            MONGO_URI,
+            tls=True,
+            tlsCAFile=certifi.where()
+        )
+        # logger.info("Connected to MongoDB.")
+        return client['wdt-db']
 
     except Exception as e:
-        logger.error(f"Connection Error: {e}")
+        # logger.error(f"Connection Error: {e}")
+        print(e)
 
 def exist_user(user_data):
     try:
@@ -61,7 +70,8 @@ def exist_user(user_data):
         # return user
 
     except Exception as e:
-        logger.error(f"User Exist Error: {e}")
+        # logger.error(f"User Exist Error: {e}")
+        print(e)
 
 def find_user_by_email(email):
     db = connect_db()
