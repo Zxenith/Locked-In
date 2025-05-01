@@ -1,0 +1,347 @@
+import { useEffect, useState } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Download, ExternalLink, ThumbsUp, ThumbsDown } from "lucide-react";
+import { useToast } from "@/components/ui/use-toast";
+ 
+const Recommendations = () => {
+  const { isAuthenticated, isLoading } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { toast } = useToast();
+  
+  // State to store recommendations
+  const [recommendations, setRecommendations] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  // Parse the recommendations into sections
+  const [parsedRecommendations, setParsedRecommendations] = useState<{
+    courseList: string[];
+    roadmap: string[];
+    resources: string[];
+    rawText: string;
+  }>({
+    courseList: [],
+    roadmap: [],
+    resources: [],
+    rawText: "",
+  });
+
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      navigate("/login");
+    }
+    
+    // Get recommendations from location state, if available
+    if (location.state && location.state.recommendations) {
+      setRecommendations(location.state.recommendations);
+    } else {
+      setLoading(true);
+      toast({
+        title: "No recommendations found",
+        description: "Please complete your profile first",
+        variant: "destructive",
+      });
+      navigate("/profile");
+    }
+  }, [isAuthenticated, isLoading, navigate, location.state, toast]);
+
+  useEffect(() => {
+    if (recommendations) {
+      // Parse the recommendation text
+      try {
+        const text = recommendations.toString();
+        
+        // Simple parsing based on common patterns in the response
+        const sections: { courseList: string[], roadmap: string[], resources: string[] } = {
+          courseList: [],
+          roadmap: [],
+          resources: []
+        };
+        
+        // Split by double newlines to get paragraphs
+        const paragraphs = text.split(/\n\n+/);
+        
+        // Process each paragraph
+        paragraphs.forEach(paragraph => {
+          // Trim and check for empty paragraphs
+          const trimmed = paragraph.trim();
+          if (!trimmed) return;
+          
+          // Check for course listings (numbered or bulleted lists)
+          if (/^(\d+\.|-)/.test(trimmed)) {
+            sections.courseList.push(trimmed);
+          }
+          // Check for roadmap-like content (contains "step", "phase", "month", or "week")
+          else if (/\b(step|phase|month|week)\b/i.test(trimmed)) {
+            sections.roadmap.push(trimmed);
+          }
+          // Check for resource-like content (contains "resource", "link", "http", or "www")
+          else if (/\b(resource|link|http|www)\b/i.test(trimmed)) {
+            sections.resources.push(trimmed);
+          }
+          // Add to general course list if it doesn't fit other categories
+          else {
+            sections.courseList.push(trimmed);
+          }
+        });
+        
+        setParsedRecommendations({
+          ...sections,
+          rawText: text
+        });
+      } catch (error) {
+        console.error("Error parsing recommendations:", error);
+        setParsedRecommendations({
+          courseList: [],
+          roadmap: [],
+          resources: [],
+          rawText: recommendations.toString()
+        });
+      }
+    }
+  }, [recommendations]);
+  
+  const handleFeedback = (type: 'like' | 'dislike') => {
+    toast({
+      title: type === 'like' ? "Thank you for your feedback!" : "We'll improve our recommendations",
+      description: type === 'like' 
+        ? "We're glad you found these recommendations helpful." 
+        : "We appreciate your feedback and will use it to improve.",
+    });
+  };
+
+  const handleExportPDF = () => {
+    // Placeholder for PDF export functionality
+    toast({
+      title: "Export feature coming soon",
+      description: "The ability to export recommendations as PDF will be available soon.",
+    });
+  };
+
+  if (isLoading || loading) {
+    return (
+      <div className="min-h-[70vh] flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-brand-500 mx-auto"></div>
+          <p className="mt-4 text-lg text-gray-600">Loading your recommendations...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-4xl mx-auto">
+      <div className="mb-8 text-center">
+        <h1 className="text-3xl font-bold text-gray-900">Your Personalized Learning Path</h1>
+        <p className="text-lg text-gray-600 mt-2">
+          Based on your profile, here are our AI-powered course recommendations
+        </p>
+      </div>
+      
+      <Card>
+        <CardHeader>
+          <CardTitle>Course Recommendations</CardTitle>
+          <CardDescription>
+            Tailored courses and learning path based on your career goals and preferences
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Tabs defaultValue="courses">
+            <TabsList className="grid grid-cols-3 mb-6">
+              <TabsTrigger value="courses">Recommended Courses</TabsTrigger>
+              <TabsTrigger value="roadmap">Learning Roadmap</TabsTrigger>
+              <TabsTrigger value="resources">Additional Resources</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="courses" className="animate-fade-in">
+              <div className="space-y-4">
+                <h3 className="text-xl font-semibold">Courses to Consider</h3>
+                {parsedRecommendations.courseList.length > 0 ? (
+                  parsedRecommendations.courseList.map((course, index) => (
+                    <Card key={index} className="card-hover">
+                      <CardContent className="p-4">
+                        <div 
+                          className="prose prose-blue max-w-none"
+                          dangerouslySetInnerHTML={{ 
+                            __html: course.replace(/(\d+\.\s|\-\s)/g, '<strong>$1</strong>')
+                                        .replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" class="text-brand-600 hover:text-brand-800">$1</a>')
+                                        .replace(/\n/g, '<br/>')
+                          }}
+                        />
+                      </CardContent>
+                    </Card>
+                  ))
+                ) : (
+                  <p className="text-gray-600">No specific courses were recommended. Check the other tabs for more information.</p>
+                )}
+              </div>
+            </TabsContent>
+            
+            <TabsContent value="roadmap" className="animate-fade-in">
+              <div className="space-y-4">
+                <h3 className="text-xl font-semibold">Your Learning Journey</h3>
+                {parsedRecommendations.roadmap.length > 0 ? (
+                  parsedRecommendations.roadmap.map((step, index) => (
+                    <Card key={index} className="card-hover">
+                      <CardContent className="p-4">
+                        <div 
+                          className="prose prose-blue max-w-none"
+                          dangerouslySetInnerHTML={{ 
+                            __html: step.replace(/(Step \d+|Phase \d+|Month \d+|Week \d+):/g, '<strong>$1:</strong>')
+                                      .replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" class="text-brand-600 hover:text-brand-800">$1</a>')
+                                      .replace(/\n/g, '<br/>')
+                          }}
+                        />
+                      </CardContent>
+                    </Card>
+                  ))
+                ) : (
+                  <div className="bg-amber-50 p-6 rounded-lg border border-amber-200">
+                    <p className="text-amber-800">
+                      {parsedRecommendations.rawText ? (
+                        "We couldn't detect a specific learning roadmap in the recommendations. Please check the raw recommendations for more details."
+                      ) : (
+                        "No learning roadmap is available. Please complete your profile to get personalized recommendations."
+                      )}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </TabsContent>
+            
+            <TabsContent value="resources" className="animate-fade-in">
+              <div className="space-y-4">
+                <h3 className="text-xl font-semibold">Additional Resources</h3>
+                {parsedRecommendations.resources.length > 0 ? (
+                  parsedRecommendations.resources.map((resource, index) => (
+                    <Card key={index} className="card-hover">
+                      <CardContent className="p-4">
+                        <div 
+                          className="prose prose-blue max-w-none"
+                          dangerouslySetInnerHTML={{ 
+                            __html: resource.replace(/(\d+\.\s|\-\s)/g, '<strong>$1</strong>')
+                                        .replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" class="text-brand-600 hover:text-brand-800 flex items-center"><span>$1</span><ExternalLink className="h-3 w-3 ml-1" /></a>')
+                                        .replace(/\n/g, '<br/>')
+                          }}
+                        />
+                      </CardContent>
+                    </Card>
+                  ))
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-gray-600">No additional resources were specifically recommended.</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <Card className="p-4">
+                        <h4 className="font-medium">General Learning Platforms</h4>
+                        <ul className="mt-2 space-y-2 text-sm">
+                          <li className="flex items-center">
+                            <a href="https://www.coursera.org" target="_blank" rel="noreferrer" className="text-brand-600 hover:text-brand-800 flex items-center">
+                              Coursera <ExternalLink className="h-3 w-3 ml-1" />
+                            </a>
+                          </li>
+                          <li className="flex items-center">
+                            <a href="https://www.udemy.com" target="_blank" rel="noreferrer" className="text-brand-600 hover:text-brand-800 flex items-center">
+                              Udemy <ExternalLink className="h-3 w-3 ml-1" />
+                            </a>
+                          </li>
+                          <li className="flex items-center">
+                            <a href="https://www.edx.org" target="_blank" rel="noreferrer" className="text-brand-600 hover:text-brand-800 flex items-center">
+                              edX <ExternalLink className="h-3 w-3 ml-1" />
+                            </a>
+                          </li>
+                        </ul>
+                      </Card>
+                      <Card className="p-4">
+                        <h4 className="font-medium">Community Resources</h4>
+                        <ul className="mt-2 space-y-2 text-sm">
+                          <li className="flex items-center">
+                            <a href="https://stackoverflow.com" target="_blank" rel="noreferrer" className="text-brand-600 hover:text-brand-800 flex items-center">
+                              Stack Overflow <ExternalLink className="h-3 w-3 ml-1" />
+                            </a>
+                          </li>
+                          <li className="flex items-center">
+                            <a href="https://github.com" target="_blank" rel="noreferrer" className="text-brand-600 hover:text-brand-800 flex items-center">
+                              GitHub <ExternalLink className="h-3 w-3 ml-1" />
+                            </a>
+                          </li>
+                          <li className="flex items-center">
+                            <a href="https://www.reddit.com/r/learnprogramming/" target="_blank" rel="noreferrer" className="text-brand-600 hover:text-brand-800 flex items-center">
+                              r/learnprogramming <ExternalLink className="h-3 w-3 ml-1" />
+                            </a>
+                          </li>
+                        </ul>
+                      </Card>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </TabsContent>
+          </Tabs>
+          
+          <div className="mt-8 flex flex-col sm:flex-row justify-between items-center pt-6 border-t border-gray-200">
+            <div className="flex items-center space-x-4 mb-4 sm:mb-0">
+              <span className="text-sm text-gray-500">Was this helpful?</span>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="flex items-center space-x-1"
+                onClick={() => handleFeedback('like')}
+              >
+                <ThumbsUp className="h-4 w-4" />
+                <span>Yes</span>
+              </Button>
+              <Button 
+                variant="outline"
+                size="sm" 
+                className="flex items-center space-x-1"
+                onClick={() => handleFeedback('dislike')}
+              >
+                <ThumbsDown className="h-4 w-4" />
+                <span>No</span>
+              </Button>
+            </div>
+            
+            <div className="flex space-x-2">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="flex items-center space-x-1"
+                onClick={handleExportPDF}
+              >
+                <Download className="h-4 w-4" />
+                <span>Export PDF</span>
+              </Button>
+              <Button 
+                size="sm"
+                onClick={() => navigate("/profile")}
+              >
+                Update Preferences
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+      
+      {/* Show raw recommendations for debugging/development */}
+      {false && parsedRecommendations.rawText && (
+        <Card className="mt-8">
+          <CardHeader>
+            <CardTitle>Raw Recommendations</CardTitle>
+            <CardDescription>Full text of AI-generated recommendations</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <pre className="whitespace-pre-wrap text-sm bg-gray-50 p-4 rounded-md overflow-auto max-h-[400px]">
+              {parsedRecommendations.rawText}
+            </pre>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+};
+
+export default Recommendations;

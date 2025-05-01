@@ -1,13 +1,20 @@
+import os
 import json
 import requests
 from google import genai
+from dotenv import load_dotenv
+
+
+load_dotenv()
+
+GEMINI_SECRET_KEY = os.getenv("GEMINI_SECRET_KEY")
 
 def parse_to_json(data: str):
     cleaned_data = data[data.index("{") : data.rindex("}") + 1]
     return json.loads(cleaned_data)
 
 def get_career_roadmap(user_input):
-    client = genai.Client(api_key="AIzaSyDy3uwnNR6bgQKm5mf43mf5RLN4ZG8ehKg")  
+    client = genai.Client(api_key=f"{GEMINI_SECRET_KEY}")  
     prompt = f"""
     You are an AI career assistant that helps users upskill effectively. Based on the given user profile and goals, generate a structured JSON response that includes:
 

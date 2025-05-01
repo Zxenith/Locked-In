@@ -38,6 +38,7 @@ def verify_token(token):
 @app.route("/register", methods=["POST"])
 def register():
     data = request.form
+    print("Registering user with data:", data)
     if utils.data_utils.find_user_by_email(data['email']):
         return jsonify({"error": "User already exists"}), 400
     hashed_password = bcrypt.generate_password_hash(data['password']).decode('utf-8')
@@ -75,6 +76,7 @@ def home():
     user_data = verify_token(token)
     if user_data:
         user = utils.data_utils.find_user_by_email(user_data['email'])
+        user['_id'] = str(user['_id'])  # Convert ObjectId to string
         return jsonify({
             "name": user['name'],
             "email": user['email'],
@@ -111,7 +113,9 @@ def profile():
         utils.data_utils.insert_or_update_user(user_input)
         profile = utils.data_utils.find_user_by_email(user_input['email'])
         output = get_career_roadmap(profile)
-        return jsonify({"prediction": output})
+        print("Profile prediction output:", output)
+        return jsonify(output)
+    
     except Exception as e:
         return jsonify({"error": f"Error processing profile: {str(e)}"}), 500
 
