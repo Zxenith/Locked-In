@@ -6,6 +6,54 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Download, ExternalLink, ThumbsUp, ThumbsDown } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
+
+// Helper function to validate recommendations data
+const validateRecommendations = (data: any): string | null => {
+  // Check if data exists
+  if (!data) return null;
+  
+  // Handle different response formats
+  if (typeof data === 'string') {
+    return data;
+  } else if (typeof data === 'object') {
+    // Case 1: Direct Gemini response containing roadmap, skills, etc.
+    if (data.roadmap || data.skills_to_learn || data.recommended_courses) {
+      try {
+        return JSON.stringify(data, null, 2);
+      } catch (e) {
+        console.error("Failed to stringify direct Gemini response:", e);
+      }
+    }
+    
+    // Case 2: Some APIs might return { prediction: "text" } or { text: "content" }
+    if (data.prediction && typeof data.prediction === 'string') {
+      return data.prediction;
+    } else if (data.prediction && typeof data.prediction === 'object') {
+      try {
+        return JSON.stringify(data.prediction, null, 2);
+      } catch (e) {
+        console.error("Failed to stringify prediction object:", e);
+      }
+    }
+    
+    // Case 3: Other simple object properties
+    if (data.text && typeof data.text === 'string') {
+      return data.text;
+    } else if (data.content && typeof data.content === 'string') {
+      return data.content;
+    }
+    
+    // If no known property is found, try JSON stringify the whole object
+    try {
+      return JSON.stringify(data, null, 2);
+    } catch (e) {
+      console.error("Failed to stringify recommendation data:", e);
+      return null;
+    }
+  }
+  
+  return null;
+};
  
 const Recommendations = () => {
   const { isAuthenticated, isLoading } = useAuth();
@@ -37,9 +85,33 @@ const Recommendations = () => {
     
     // Get recommendations from location state, if available
     if (location.state && location.state.recommendations) {
-      setRecommendations(location.state.recommendations);
+      console.log("Raw location state recommendations:", location.state.recommendations);
+      const validatedRecommendations = validateRecommendations(location.state.recommendations);
+      console.log("Validated recommendations:", validatedRecommendations);
+      
+      if (validatedRecommendations) {
+        setRecommendations(validatedRecommendations);
+      } else {
+        console.error("Invalid recommendations format received");
+        setLoading(true);
+        
+        toast({
+          title: "Invalid recommendations format",
+          description: "There was an issue processing your recommendations",
+          variant: "destructive",
+        });
+        navigate("/profile");
+      }
     } else {
+      console.log("Location state:", location.state);
       setLoading(true);
+      
+      // After navigating from ProfileForm, if there are no recommendations,
+      // it's likely due to one of these causes:
+      // 1. User accessed this page directly without going through the form
+      // 2. There was an error in the API response
+      // 3. The state was lost during navigation
+      
       toast({
         title: "No recommendations found",
         description: "Please complete your profile first",
@@ -55,44 +127,127 @@ const Recommendations = () => {
       try {
         const text = recommendations.toString();
         
-        // Simple parsing based on common patterns in the response
-        const sections: { courseList: string[], roadmap: string[], resources: string[] } = {
-          courseList: [],
-          roadmap: [],
-          resources: []
-        };
+        // Check if the text is JSON
+        let jsonData = null;
+        try {
+          jsonData = JSON.parse(text);
+        } catch (e) {
+          // Not JSON, will use text parsing
+        }
         
-        // Split by double newlines to get paragraphs
-        const paragraphs = text.split(/\n\n+/);
-        
-        // Process each paragraph
-        paragraphs.forEach(paragraph => {
-          // Trim and check for empty paragraphs
-          const trimmed = paragraph.trim();
-          if (!trimmed) return;
+        if (jsonData) {
+          // Handle JSON data from Gemini API
+          console.log("Parsed JSON data:", jsonData);
           
-          // Check for course listings (numbered or bulleted lists)
-          if (/^(\d+\.|-)/.test(trimmed)) {
-            sections.courseList.push(trimmed);
+          const sections: { courseList: string[], roadmap: string[], resources: string[] } = {
+            courseList: [],
+            roadmap: [],
+            resources: []
+          };
+          
+          // Extract recommended courses
+          if (jsonData.recommended_courses && Array.isArray(jsonData.recommended_courses)) {
+            jsonData.recommended_courses.forEach((course: any, index: number) => {
+              sections.courseList.push(
+                `${index + 1}. ${course.title} - ${course.platform}\n` +
+                `   Difficulty: ${course.difficulty}\n` +
+                `   URL: ${course.url || 'Not provided'}`
+              );
+            });
           }
-          // Check for roadmap-like content (contains "step", "phase", "month", or "week")
-          else if (/\b(step|phase|month|week)\b/i.test(trimmed)) {
-            sections.roadmap.push(trimmed);
+          
+          // Extract roadmap
+          if (jsonData.roadmap && Array.isArray(jsonData.roadmap)) {
+            jsonData.roadmap.forEach((step: any) => {
+              let stepText = `Week ${step.week}: ${step.focus}\n`;
+              
+              if (step.tasks && Array.isArray(step.tasks)) {
+                stepText += "Tasks:\n" + step.tasks.map((task: string) => `- ${task}`).join("\n");
+              }
+              
+              if (step.project) {
+                stepText += `\nProject: ${step.project}`;
+              }
+              
+              sections.roadmap.push(stepText);
+            });
           }
-          // Check for resource-like content (contains "resource", "link", "http", or "www")
-          else if (/\b(resource|link|http|www)\b/i.test(trimmed)) {
-            sections.resources.push(trimmed);
+          
+          // Extract learning resources
+          if (jsonData.learning_resources && Array.isArray(jsonData.learning_resources)) {
+            jsonData.learning_resources.forEach((resource: any, index: number) => {
+              sections.resources.push(
+                `${index + 1}. ${resource.type}: ${resource.title || resource.name}\n` +
+                (resource.author ? `   Author: ${resource.author}\n` : '') +
+                (resource.url ? `   URL: ${resource.url}` : '')
+              );
+            });
           }
-          // Add to general course list if it doesn't fit other categories
-          else {
-            sections.courseList.push(trimmed);
+          
+          // Add career tips to resources
+          if (jsonData.career_tips && Array.isArray(jsonData.career_tips)) {
+            sections.resources.push(
+              "Career Tips:\n" + jsonData.career_tips.map((tip: string) => `- ${tip}`).join("\n")
+            );
           }
-        });
-        
-        setParsedRecommendations({
-          ...sections,
-          rawText: text
-        });
+          
+          // Add skills to learn to courses
+          if (jsonData.skills_to_learn && Array.isArray(jsonData.skills_to_learn)) {
+            sections.courseList.unshift(
+              "Skills to Learn:\n" + 
+              jsonData.skills_to_learn.map((skill: any, index: number) => 
+                `${index + 1}. ${skill.name} (${skill.category})`
+              ).join("\n")
+            );
+          }
+          
+          setParsedRecommendations({
+            ...sections,
+            rawText: text
+          });
+        } else {
+          // Use the existing text parsing logic for non-JSON responses
+          console.log("Using text parsing for non-JSON response");
+          
+          // Simple parsing based on common patterns in the response
+          const sections: { courseList: string[], roadmap: string[], resources: string[] } = {
+            courseList: [],
+            roadmap: [],
+            resources: []
+          };
+          
+          // Split by double newlines to get paragraphs
+          const paragraphs = text.split(/\n\n+/);
+          
+          // Process each paragraph
+          paragraphs.forEach(paragraph => {
+            // Trim and check for empty paragraphs
+            const trimmed = paragraph.trim();
+            if (!trimmed) return;
+            
+            // Check for course listings (numbered or bulleted lists)
+            if (/^(\d+\.|-)/.test(trimmed)) {
+              sections.courseList.push(trimmed);
+            }
+            // Check for roadmap-like content (contains "step", "phase", "month", or "week")
+            else if (/\b(step|phase|month|week)\b/i.test(trimmed)) {
+              sections.roadmap.push(trimmed);
+            }
+            // Check for resource-like content (contains "resource", "link", "http", or "www")
+            else if (/\b(resource|link|http|www)\b/i.test(trimmed)) {
+              sections.resources.push(trimmed);
+            }
+            // Add to general course list if it doesn't fit other categories
+            else {
+              sections.courseList.push(trimmed);
+            }
+          });
+          
+          setParsedRecommendations({
+            ...sections,
+            rawText: text
+          });
+        }
       } catch (error) {
         console.error("Error parsing recommendations:", error);
         setParsedRecommendations({
@@ -340,6 +495,47 @@ const Recommendations = () => {
           </CardContent>
         </Card>
       )}
+
+      {/* Debug component for troubleshooting recommendation issues */}
+      {/* <Card className="mt-8 border-red-300">
+        <CardHeader className="bg-red-50">
+          <CardTitle>Debug Information</CardTitle>
+          <CardDescription>Information for troubleshooting recommendation issues</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div>
+              <h3 className="font-medium">Location State:</h3>
+              <pre className="whitespace-pre-wrap text-sm bg-gray-50 p-4 rounded-md overflow-auto max-h-[200px]">
+                {JSON.stringify(location.state, null, 2)}
+              </pre>
+            </div>
+            <div>
+              <h3 className="font-medium">Raw Recommendations State:</h3>
+              <pre className="whitespace-pre-wrap text-sm bg-gray-50 p-4 rounded-md overflow-auto max-h-[200px]">
+                {JSON.stringify(recommendations, null, 2)}
+              </pre>
+            </div>
+            <div>
+              <h3 className="font-medium">Parsed Recommendations:</h3>
+              <div className="text-sm">
+                <p><strong>Course List Items:</strong> {parsedRecommendations.courseList.length}</p>
+                <p><strong>Roadmap Items:</strong> {parsedRecommendations.roadmap.length}</p>
+                <p><strong>Resource Items:</strong> {parsedRecommendations.resources.length}</p>
+              </div>
+            </div>
+            <div className="pt-4 border-t">
+              <h3 className="font-medium text-blue-700">Troubleshooting Steps:</h3>
+              <ol className="list-decimal list-inside text-sm mt-2 space-y-1">
+                <li>Check that the <code>response.prediction</code> from API exists</li>
+                <li>Verify that the API is returning the expected JSON structure</li>
+                <li>Make sure React Router state is properly passing between pages</li>
+                <li>If data is in wrong format, adjust the <code>validateRecommendations</code> function</li>
+              </ol>
+            </div>
+          </div>
+        </CardContent>
+      </Card> */}
     </div>
   );
 };

@@ -114,7 +114,7 @@ def profile():
         profile = utils.data_utils.find_user_by_email(user_input['email'])
         output = get_career_roadmap(profile)
         print("Profile prediction output:", output)
-        return jsonify(output)
+        return jsonify({"prediction": output})
     
     except Exception as e:
         return jsonify({"error": f"Error processing profile: {str(e)}"}), 500

@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { UploadCloud, FileText, Check, AlertCircle } from "lucide-react";
-import { uploadResume } from "@/lib/api";
+import { uploadResume } from "../../lib/api";
 import { useToast } from "@/components/ui/use-toast";
 
 const ResumeUpload = () => {

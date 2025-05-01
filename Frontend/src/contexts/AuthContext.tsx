@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { useToast } from "@/components/ui/use-toast";
-import { getUserProfile, LoginCredentials, login, logout, register, RegisterData } from "@/lib/api";
+import { getUserProfile, LoginCredentials, login, logout, register, RegisterData } from "../../lib/api";
 
 interface AuthContextType {
   user: any;

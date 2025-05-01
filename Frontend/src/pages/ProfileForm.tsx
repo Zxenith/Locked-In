@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -10,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { X } from "lucide-react";
-import { submitProfile } from "@/lib/api";
+import { submitProfile } from "../../lib/api";
 import { useToast } from "@/components/ui/use-toast";
 
 const ProfileForm = () => {
@@ -105,6 +104,26 @@ const ProfileForm = () => {
     try {
       const response = await submitProfile(formData);
       
+      // Debug: Log the API response
+      console.log("API Response:", response);
+      
+      // The API returns data in either { prediction: data } format or directly as data
+      // Make sure we handle both cases
+      let recommendationsData;
+      
+      if (response.prediction !== undefined) {
+        console.log("Recommendations found in response.prediction");
+        recommendationsData = response.prediction;
+      } else if (typeof response === 'object') {
+        console.log("Using full response object as recommendations");
+        recommendationsData = response;
+      } else {
+        console.log("Using response as raw string");
+        recommendationsData = String(response);
+      }
+      
+      console.log("Final recommendations data:", recommendationsData);
+      
       // Refresh user profile to get latest data
       await refreshUserProfile();
       
@@ -113,8 +132,12 @@ const ProfileForm = () => {
         description: "Your course recommendations are ready!",
       });
       
+      // Debug: Log the state being passed to navigation
+      const navigationState = { recommendations: recommendationsData };
+      console.log("Navigation state:", navigationState);
+      
       // Navigate to recommendations page and pass the data
-      navigate("/recommendations", { state: { recommendations: response.prediction } });
+      navigate("/recommendations", { state: navigationState });
     } catch (error: any) {
       console.error("Error submitting profile:", error);
       toast({
