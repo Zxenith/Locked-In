@@ -9,6 +9,7 @@ import utils
 import utils.data_utils
 from utils.gemini_utils import get_career_roadmap
 import utils.pdf_utils
+from flask_cors import CORS
 
 load_dotenv()
 
@@ -16,6 +17,8 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ['APP_SECRET_KEY']
 bcrypt = Bcrypt(app)
 db = utils.data_utils.connect_db()
+
+CORS(app)
 
 def generate_token(user):
     payload = {

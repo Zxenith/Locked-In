@@ -172,3 +172,4 @@ cython_debug/
 DATASETS
 *.csv
 *.json
+*.pdf
